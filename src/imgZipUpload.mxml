@@ -128,9 +128,21 @@
                         {
                             bmd = bm.bitmapData;
                         }
+                        //http://livedocs.adobe.com/flex/3_cn/langref/flash/geom/Matrix.html
+                        var waterMark:WaterMark = new WaterMark();
+                        var matrix:Matrix = new Matrix();
+                        matrix.translate(600, 430);
+                        bmd.draw(waterMark.getWaterMark(), matrix);
 						
 						var jpegEnc:JPEGEncoder = new JPEGEncoder(imgQuality);
 						var jpegData:ByteArray = jpegEnc.encode(bmd);
+						
+						var image:Image = new Image();
+						image.x = 250;
+						image.y = 100;
+						image.source = jpegData;
+					    addChild(image);
+						
 						var req:URLRequest = new URLRequest(serverUrl);						
 						req.contentType = 'applicatoin/octet-stream';
 						req.method = URLRequestMethod.POST;
@@ -159,24 +171,6 @@
 						{
 							showError("上传失败！" + error.message);
 						}
-					//});
-					//image.source = bitmap;
-					//image.x = drawSeq ++ * imgWidth;
-					//image.y = 100;
-					//if(bitmap.width > imgWidth || bitmap.height > imgHeight)
-					//{
-						//if(imgWidth / imgHeight > bitmap.width / bitmap.height)
-						//{
-							//image.height = imgHeight;
-							//image.width = imgHeight / bitmap.height * bitmap.width;
-						//}
-						//else
-						//{
-							//image.width = imgWidth;
-							//image.height = imgWidth / bitmap.width * bitmap.height;
-						//}
-					//}
-					//addChild(image);
 				});
 				imageloader.loadBytes(fileUpload.data);
 			}

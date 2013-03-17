@@ -1,230 +1,227 @@
 <?xml version="1.0" encoding="utf-8"?>
 <mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute" minWidth="0" minHeight="0" backgroundColor="#FFFFFF" backgroundAlpha="0.0" backgroundGradientAlphas="[0.0, 0.0]" backgroundGradientColors="[#FFFFFF, #FFFFFF]" fontSize="12" applicationComplete="app(event)" horizontalScrollPolicy="off" verticalScrollPolicy="off">
-	
-	<mx:Script>
-		<![CDATA[
-			import mx.controls.Alert;
-			import mx.controls.Image;
-			import mx.events.FlexEvent;
-			import mx.graphics.codec.*;
-			import flash.net.*;
-			
-			private var LIST_COMPLETE:String = "listComplete"
-			private var fileUploadList:FileReferenceList = new FileReferenceList();
-			//private var serverUrl:String = 'http://localhost:8058/saveImage.aspx';
-			private var serverUrl:String = '';
-			private var imgWidth:Number = 100;
-			private var imgHeight:Number = 100;
-			private var imgQuality:Number = 80;
-			private var image:Image;
-			private var jsFunction:String = '';
-			private var btnText: String = '上传图片';
-			
-			private var uploadCount:Number = 0;
-			private var resultArray:Array = new Array();
-			
-			protected function app(event:FlexEvent):void
-			{
-				if(parameters != null)
-				{
-					if(parameters["serverUrl"] != null)
-					{
-						serverUrl = String(parameters["serverUrl"]);
-					}
-					if(parameters["imgWidth"] != null)
-					{
-						imgWidth = Number(parameters["imgWidth"]);
-					}
-					if(parameters["imgHeight"] != null)
-					{
-						imgHeight = Number(parameters["imgHeight"]);
-					}
-					if(parameters["imgQuality"] != null)
-					{
-						imgQuality = Number(parameters["imgQuality"]);
-					}
-					if(parameters["jsFunction"] != null)
-					{
-						jsFunction = String(parameters["jsFunction"]);
-					}
-					if(parameters["btnText"] != null)
-					{
-						btnUpload.label = btnText = String(parameters["btnText"]);
-					}
-				}
-				
-				//服务器响应URL必须填写
-				//if(serverUrl = '')
-				//{
-					//btnUpload.enabled = false;
-					//return;
-				//}
-				
-				imgWidth = Math.max(imgWidth, 10);
-				imgWidth = Math.min(imgWidth, 2000);
-				imgHeight = Math.max(imgHeight, 10);
-				imgHeight = Math.min(imgHeight, 2000);
-				imgQuality = Math.max(imgQuality, 1);
-				imgQuality = Math.min(imgQuality, 100);
-				
-				fileUploadList.addEventListener(Event.SELECT, function(evt:Event):void{
-					btnUpload.label ="上传中...";
-					btnUpload.enabled = false;
-					//fileUpload.load();
-					var file:FileReference;
-					var files:FileReferenceList = FileReferenceList(evt.target);
-					var selectedFileArray:Array = files.fileList;
-					uploadCount = selectedFileArray.length;
-					if (uploadCount > 8) {
-					  showError("最多只能选择8张图片：）");
-					  return;
-					}
-					for (var i:uint = 0; i < uploadCount; i++) {
-						file = FileReference(selectedFileArray[i]);
-						file.addEventListener(Event.COMPLETE, loadImageComplete);
-						file.load();
-					}
-				});
-				
-				fileUploadList.addEventListener(IOErrorEvent.IO_ERROR, function(evt:IOErrorEvent):void{
-					showError("加载图片失败！错误信息：" + evt.text);
-				});
-				
-				fileUploadList.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(evt:SecurityErrorEvent):void{
-					showError("加载图片失败！错误信息：" + evt.text);
-				});
-				
-			}
-			
-			private var drawSeq:int = 0;
-			private var maxSize:Number = 768;
-			private function loadImageComplete(evt:Event):void
-			{
-				var fileUpload = evt.target as FileReference;
-				var imageloader:Loader = new Loader();
-				
-				imageloader.contentLoaderInfo.addEventListener(Event.COMPLETE,function(e:Event):void{								
-					    var bm:Bitmap=e.target.content as Bitmap;
-                        var bmd:BitmapData;
-                        if((bm.width>=bm.height)&&bm.width>maxSize)
-                        {
-                            var rateW:Number=maxSize/bm.width;
-                            var h:Number=rateW*bm.height;
-                            bmd=new BitmapData(maxSize,h,true,0);
-                            bmd.draw(bm.bitmapData,new Matrix(rateW,0,0,rateW),null,null,null,true);
-                            bm=new Bitmap(bmd,PixelSnapping.ALWAYS,true);
-                            bmd = bm.bitmapData;
-                        }
-                        else if(bm.height>bm.width&&bm.height>maxSize)
-                        {
-                            var rateH:Number=maxSize/bm.height;
-                            var w:Number=rateH*bm.width;
-                            bmd=new BitmapData(w,maxSize,true,0);
-                            bmd.draw(bm.bitmapData,new Matrix(rateH,0,0,rateH),null,null,null,true);
-                            bm=new Bitmap(bmd,PixelSnapping.ALWAYS,true);
-                            bmd = bm.bitmapData;
-                        }
-                        else
-                        {
-                            bmd = bm.bitmapData;
-                        }
-                        //http://livedocs.adobe.com/flex/3_cn/langref/flash/geom/Matrix.html
-                        var waterMark:WaterMark = new WaterMark();
-                        var matrix:Matrix = new Matrix();
-                        matrix.translate(600, 430);
-                        bmd.draw(waterMark.getWaterMark(), matrix);
-						
-						var jpegEnc:JPEGEncoder = new JPEGEncoder(imgQuality);
-						var jpegData:ByteArray = jpegEnc.encode(bmd);
-						
-						var image:Image = new Image();
-						image.x = 250;
-						image.y = 100;
-						image.source = jpegData;
-					    addChild(image);
-						
-						var req:URLRequest = new URLRequest(serverUrl);						
-						req.contentType = 'applicatoin/octet-stream';
-						req.method = URLRequestMethod.POST;
-						req.data = jpegData;
-						//
-						var arrHead:Array = new Array();
-						arrHead.push(new URLRequestHeader("fileName", encodeURIComponent(fileUpload.name)));
-						arrHead.push(new URLRequestHeader("width", width.toString()));
-						arrHead.push(new URLRequestHeader("height", height.toString()));
-						req.requestHeaders = arrHead;
-						
-						var loader:URLLoader = new URLLoader();
-						loader.addEventListener(Event.COMPLETE, uploadComplete);
-						loader.addEventListener(IOErrorEvent.IO_ERROR, function(evt:IOErrorEvent):void{
-							showError("上传图片失败！错误信息：" + evt.text);
-						});
-						loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(evt:SecurityErrorEvent):void{
-							showError("上传图片失败！错误信息：" + evt.text);
-						});
-						//Alert.show(fileUpload.name);
-						try
-						{
-							loader.load(req);
-						} 
-						catch (error:Error)
-						{
-							showError("上传失败！" + error.message);
-						}
-				});
-				imageloader.loadBytes(fileUpload.data);
-			}
-			
-			private function showError(str:String):void
-			{
-				//resultArray.push(str);	
-				btnUpload.enabled = true;
-				btnUpload.label = btnText;
-				callJs('error', str);
-			}
-			
-			private function uploadComplete(evt:Event):void{
-				//Alert.show(evt.target.data);
-				//resultArray.push(evt.target.data);						
-				//if(resultArray.length === uploadCount){
-  				  btnUpload.enabled = true;
-  				  btnUpload.label = btnText;
-  				  callJs('complete', evt.target.data);
-				//}
-			}
-			
-			protected function btnUpload_clickHandler(event:MouseEvent):void
-			{
-				if(image != null)
-				{
-					image.source = null;
-					image = null;
-				}
-				var jpgFilter:FileFilter = new FileFilter("*.jpg","*.jpg");
-				var bmpFilter:FileFilter = new FileFilter("*.bmp","*.bmp");
-				fileUploadList.browse([jpgFilter, bmpFilter]);
-			}
-			
-			//回调JS函数
-			private function callJs(type:String, str:String):void
-			{
-				if(jsFunction == '')
-				{
-					return;
-				}
-				try
-				{
-					if(ExternalInterface.available)
-					{
-						ExternalInterface.call(jsFunction, type, str);
-					}
-				}
-				catch(err:Error)
-				{}
-			}
-		]]>
-	</mx:Script>
-	
-	<mx:Button x="5" y="5" label="上 传" fontWeight="normal" id="btnUpload" click="btnUpload_clickHandler(event)"/>
-	
+  
+  <mx:Script>
+  <![CDATA[
+    import mx.controls.Alert;
+    import mx.controls.Image;
+    import mx.events.FlexEvent;
+    import mx.graphics.codec.*;
+    import flash.net.*;
+    
+    private var LIST_COMPLETE:String = "listComplete"
+    private var fileUploadList:FileReferenceList = new FileReferenceList();
+    //private var serverUrl:String = 'http://localhost:8058/saveImage.aspx';
+    private var serverUrl:String = '';
+    private var imgWidth:Number = 100;
+    private var imgHeight:Number = 100;
+    private var imgQuality:Number = 80;
+    private var image:Image;
+    private var jsFunction:String = '';
+    private var btnText: String = '上传图片';
+    
+    private var uploadCount:Number = 0;
+    private var resultArray:Array = new Array();
+    
+    protected function app(event:FlexEvent):void
+    {
+    if(parameters != null)
+    {
+      if(parameters["serverUrl"] != null)
+      {
+      serverUrl = String(parameters["serverUrl"]);
+      }
+      if(parameters["imgWidth"] != null)
+      {
+      imgWidth = Number(parameters["imgWidth"]);
+      }
+      if(parameters["imgHeight"] != null)
+      {
+      imgHeight = Number(parameters["imgHeight"]);
+      }
+      if(parameters["imgQuality"] != null)
+      {
+      imgQuality = Number(parameters["imgQuality"]);
+      }
+      if(parameters["jsFunction"] != null)
+      {
+      jsFunction = String(parameters["jsFunction"]);
+      }
+      if(parameters["btnText"] != null)
+      {
+      btnUpload.label = btnText = String(parameters["btnText"]);
+      }
+    }
+    
+    //服务器响应URL必须填写
+    //if(serverUrl = '')
+    //{
+      //btnUpload.enabled = false;
+      //return;
+    //}
+    
+    imgWidth = Math.max(imgWidth, 10);
+    imgWidth = Math.min(imgWidth, 2000);
+    imgHeight = Math.max(imgHeight, 10);
+    imgHeight = Math.min(imgHeight, 2000);
+    imgQuality = Math.max(imgQuality, 1);
+    imgQuality = Math.min(imgQuality, 100);
+    
+    fileUploadList.addEventListener(Event.SELECT, function(evt:Event):void{
+      btnUpload.label ="上传中...";
+      btnUpload.enabled = false;
+      //fileUpload.load();
+      var file:FileReference;
+      var files:FileReferenceList = FileReferenceList(evt.target);
+      var selectedFileArray:Array = files.fileList;
+      uploadCount = selectedFileArray.length;
+      if (uploadCount > 8) {
+      showError("最多只能选择8张图片：）");
+      return;
+      }
+      for (var i:uint = 0; i < uploadCount; i++) {
+      file = FileReference(selectedFileArray[i]);
+      file.addEventListener(Event.COMPLETE, loadImageComplete);
+      file.load();
+      }
+    });
+    
+    fileUploadList.addEventListener(IOErrorEvent.IO_ERROR, function(evt:IOErrorEvent):void{
+      showError("加载图片失败！错误信息：" + evt.text);
+    });
+    
+    fileUploadList.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(evt:SecurityErrorEvent):void{
+      showError("加载图片失败！错误信息：" + evt.text);
+    });
+    
+    }
+    
+    private var drawSeq:int = 0;
+    private var maxSize:Number = 768;
+    private function loadImageComplete(evt:Event):void
+    {
+    var fileUpload = evt.target as FileReference;
+    var imageloader:Loader = new Loader();
+    
+    imageloader.contentLoaderInfo.addEventListener(Event.COMPLETE,function(e:Event):void{        
+	  var bm:Bitmap=e.target.content as Bitmap;
+	  var bmd:BitmapData;
+	  if((bm.width>=bm.height)&&bm.width>maxSize)
+	  {
+	    var rateW:Number=maxSize/bm.width;
+	    var h:Number=rateW*bm.height;
+	    bmd=new BitmapData(maxSize,h,true,0);
+	    bmd.draw(bm.bitmapData,new Matrix(rateW,0,0,rateW),null,null,null,true);
+	    bm=new Bitmap(bmd,PixelSnapping.ALWAYS,true);
+	  }
+	  else if(bm.height>bm.width&&bm.height>maxSize)
+	  {
+	    var rateH:Number=maxSize/bm.height;
+	    var w:Number=rateH*bm.width;
+	    bmd=new BitmapData(w,maxSize,true,0);
+	    bmd.draw(bm.bitmapData,new Matrix(rateH,0,0,rateH),null,null,null,true);
+	    bm=new Bitmap(bmd,PixelSnapping.ALWAYS,true);
+	  }
+	  bmd = bm.bitmapData;
+	  //http://livedocs.adobe.com/flex/3_cn/langref/flash/geom/Matrix.html
+	  var waterMark:WaterMark = new WaterMark();
+	  var matrix:Matrix = new Matrix();
+	  matrix.translate(20, 30);
+	  var ctf:ColorTransform = new ColorTransform(0.5, 0.4, 0.12, 0.3);
+	  bmd.draw(waterMark.getWaterMark(), matrix, ctf);
+      
+      
+      var jpegEnc:JPEGEncoder = new JPEGEncoder(imgQuality);
+      var jpegData:ByteArray = jpegEnc.encode(bmd);
+      
+      var image:Image = new Image();
+      image.x = 250;
+      image.y = 100;
+      image.source = jpegData;
+      addChild(image);
+      
+      var req:URLRequest = new URLRequest(serverUrl);      
+      req.contentType = 'applicatoin/octet-stream';
+      req.method = URLRequestMethod.POST;
+      req.data = jpegData;
+      //
+      var arrHead:Array = new Array();
+      arrHead.push(new URLRequestHeader("fileName", encodeURIComponent(fileUpload.name)));
+      arrHead.push(new URLRequestHeader("width", width.toString()));
+      arrHead.push(new URLRequestHeader("height", height.toString()));
+      req.requestHeaders = arrHead;
+      
+      var loader:URLLoader = new URLLoader();
+      loader.addEventListener(Event.COMPLETE, uploadComplete);
+      loader.addEventListener(IOErrorEvent.IO_ERROR, function(evt:IOErrorEvent):void{
+        showError("上传图片失败！错误信息：" + evt.text);
+      });
+      loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(evt:SecurityErrorEvent):void{
+        showError("上传图片失败！错误信息：" + evt.text);
+      });
+      //Alert.show(fileUpload.name);
+      try
+      {
+        loader.load(req);
+      } 
+      catch (error:Error)
+      {
+        showError("上传失败！" + error.message);
+      }
+    });
+    imageloader.loadBytes(fileUpload.data);
+    }
+    
+    private function showError(str:String):void
+    {
+    //resultArray.push(str);  
+    btnUpload.enabled = true;
+    btnUpload.label = btnText;
+    callJs('error', str);
+    }
+    
+    private function uploadComplete(evt:Event):void{
+    //Alert.show(evt.target.data);
+    //resultArray.push(evt.target.data);      
+    //if(resultArray.length === uploadCount){
+      btnUpload.enabled = true;
+      btnUpload.label = btnText;
+      callJs('complete', evt.target.data);
+    //}
+    }
+    
+    protected function btnUpload_clickHandler(event:MouseEvent):void
+    {
+    if(image != null)
+    {
+      image.source = null;
+      image = null;
+    }
+    var jpgFilter:FileFilter = new FileFilter("*.jpg","*.jpg");
+    var bmpFilter:FileFilter = new FileFilter("*.bmp","*.bmp");
+    fileUploadList.browse([jpgFilter, bmpFilter]);
+    }
+    
+    //回调JS函数
+    private function callJs(type:String, str:String):void
+    {
+    if(jsFunction == '')
+    {
+      return;
+    }
+    try
+    {
+      if(ExternalInterface.available)
+      {
+      ExternalInterface.call(jsFunction, type, str);
+      }
+    }
+    catch(err:Error)
+    {}
+    }
+  ]]>
+  </mx:Script>
+  
+  <mx:Button x="5" y="5" label="上 传" fontWeight="normal" id="btnUpload" click="btnUpload_clickHandler(event)"/>
+  
 </mx:Application>
